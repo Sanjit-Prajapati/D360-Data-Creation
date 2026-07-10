@@ -1,0 +1,33 @@
+server:
+  port: 8080
+  max-http-header-size: 8KB
+  compression:
+    enabled: true
+    min-response-size: 1024
+
+spring:
+  application:
+    name: transaction-config-service
+
+  data:
+    mongodb:
+      uri: mongodb://admin:admin123@localhost:27017/Transaction?authSource=admin
+      auto-index-creation: true
+    web:
+      pageable:
+        max-page-size: 100000
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 55MB
+  
+  # Security: Request size limits
+  codec:
+    max-in-memory-size: 10MB
+
+logging:
+  level:
+    root: INFO
+    com.transactionconfig: DEBUG

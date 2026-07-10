@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Logs
+*.log
+
+# Test data
+data/
+Postman/
+
+# Documentation artifacts
+CURL_FIXES.md
+FIXES_SUMMARY.md
+API_DOCUMENTATION.md
+test-curl-commands.bat
