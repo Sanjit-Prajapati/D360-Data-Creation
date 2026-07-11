@@ -14,6 +14,7 @@ import {
   TextSnippet as NarrationIcon,
   PlaylistAddCheck as StagingIcon,
   AccountBalance as MainTransactionIcon,
+  BusinessCenter as RestrictedIcon,
 } from '@mui/icons-material';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -24,6 +25,7 @@ const menuItems = [
   { icon: <NarrationIcon />, label: 'Narration', path: '/narration-master' },
   { icon: <StagingIcon />, label: 'Staging Transactions', path: '/staging-transaction' },
   { icon: <MainTransactionIcon />, label: 'Main Transaction', path: '/main-transaction' },
+  { icon: <RestrictedIcon />, label: 'Restricted Company', path: '/restricted-company' },
 ];
 
 const bottomItems: any[] = [];

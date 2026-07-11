@@ -25,29 +25,23 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable, ColumnDef } from '@/components/common/DataTable';
 import { isinService } from '@/services/isinService';
-import { narrationService } from '@/services/narrationService';
 import { IsinMaster } from '@/types';
 
 interface Transaction {
   id: string;
-  txnId: string;
   isin: string;
   instrumentName: string;
   securityType: string;
-  fipId: string;
-  date: string;
-  transactionType: string;
-  narration: string;
-  direction: string;
-  quantity: number;
-  settlementDate: string;
-  effectiveDate: string;
-  rate: string;
-  dataSource: string;
+  restrictionLevel: string;
+  restrictedFor?: string;
+  reasonOfRestriction: string;
+  remark?: string;
+  startDate: string;
+  endDate: string;
   createdAt: string;
 }
 
-export const MainTransaction = () => {
+export const RestrictedCompany = () => {
   const [selectedIsin, setSelectedIsin] = useState<IsinMaster | null>(null);
   const [isinSearchText, setIsinSearchText] = useState('');
   const [debouncedSearchText, setDebouncedSearchText] = useState('');
@@ -56,40 +50,32 @@ export const MainTransaction = () => {
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
   
-  // Refs for date inputs
-  const tradeDateRef = useRef<HTMLInputElement>(null);
-  const settlementDateRef = useRef<HTMLInputElement>(null);
-  const effectiveDateRef = useRef<HTMLInputElement>(null);
+  // New fields for restriction level
+  const [restrictionLevel, setRestrictionLevel] = useState('');
+  const [restrictedFor, setRestrictedFor] = useState('');
+  const [reasonOfRestriction, setReasonOfRestriction] = useState('');
+  const [remark, setRemark] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   
-  const [formData, setFormData] = useState({
-    txnId: '',
-    date: new Date().toISOString().split('T')[0],
-    transactionType: '',
-    direction: 'CREDIT',
-    quantity: '',
-    settlementDate: new Date().toISOString().split('T')[0],
-    effectiveDate: new Date().toISOString().split('T')[0],
-    rate: '',
-    dataSource: 'Account Aggregator',
-  });
+  // Refs for date inputs
+  const startDateRef = useRef<HTMLInputElement>(null);
+  const endDateRef = useRef<HTMLInputElement>(null);
 
-  // Temporary mock data - replace with actual API call
+  // Local state for transactions (no backend needed - like Staging Transaction page)
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     // Load from sessionStorage on initial mount
     try {
-      const saved = sessionStorage.getItem('transaction-draft');
+      const saved = sessionStorage.getItem('restricted-company-data');
       if (saved) {
         const parsed = JSON.parse(saved);
         // Validate structure
         if (Array.isArray(parsed)) {
-          const valid = parsed.every(txn => 
-            txn.id && txn.isin && typeof txn.quantity === 'number'
-          );
-          return valid ? parsed : [];
+          return parsed;
         }
       }
     } catch (error) {
-      console.error('Failed to load draft from sessionStorage:', error);
+      console.error('Failed to load data from sessionStorage:', error);
     }
     return [];
   });
@@ -97,9 +83,9 @@ export const MainTransaction = () => {
   // Save to sessionStorage whenever transactions change
   useEffect(() => {
     try {
-      sessionStorage.setItem('transaction-draft', JSON.stringify(transactions));
+      sessionStorage.setItem('restricted-company-data', JSON.stringify(transactions));
     } catch (error) {
-      console.error('Failed to save draft to sessionStorage:', error);
+      console.error('Failed to save data to sessionStorage:', error);
     }
   }, [transactions]);
 
@@ -129,102 +115,75 @@ export const MainTransaction = () => {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
-  const { data: transactionTypes = [] } = useQuery({
-    queryKey: ['transaction-types'],
-    queryFn: () => narrationService.getTransactionTypes(),
-  });
-
-  const handleFieldChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
   const handleAddTransaction = () => {
-    // Validate all mandatory fields
+    // Validate ISIN field
     if (!selectedIsin) {
       alert('Please select an ISIN');
       return;
     }
-    
-    // Sanitize and validate Transaction ID
-    const sanitizedTxnId = formData.txnId.trim();
-    if (!sanitizedTxnId) {
-      alert('Please enter Transaction ID');
+
+    // Validate restriction level
+    if (!restrictionLevel) {
+      alert('Please select Level of Restriction');
       return;
     }
-    if (/[<>\"'&]/.test(sanitizedTxnId)) {
-      alert('Transaction ID contains invalid characters');
+
+    // Validate restrictedFor field when GROUP or USER is selected
+    if ((restrictionLevel === 'GROUP' || restrictionLevel === 'USER') && !restrictedFor.trim()) {
+      alert('Please enter Restricted For value');
       return;
     }
-    
-    if (!formData.transactionType) {
-      alert('Please select Transaction Type');
+
+    // Validate reason of restriction
+    if (!reasonOfRestriction) {
+      alert('Please select Reason of Restrictions');
       return;
     }
-    if (!formData.direction) {
-      alert('Please select Direction');
+
+    // Validate remark when Others is selected
+    if (reasonOfRestriction === 'OTHERS' && !remark.trim()) {
+      alert('Please enter Remark for Others');
       return;
     }
-    if (!formData.dataSource) {
-      alert('Please select Data Source');
+
+    // Validate start date
+    if (!startDate) {
+      alert('Please select Start Date');
       return;
     }
-    if (!formData.date) {
-      alert('Please select Trade Date');
+
+    // Validate end date
+    if (!endDate) {
+      alert('Please select End Date');
       return;
     }
-    if (!formData.settlementDate) {
-      alert('Please select Settlement Date');
-      return;
-    }
-    if (!formData.effectiveDate) {
-      alert('Please select Effective Date');
-      return;
-    }
-    
-    // Validate quantity
-    const qty = parseFloat(formData.quantity);
-    if (!formData.quantity || isNaN(qty) || qty <= 0) {
-      alert('Please enter a valid positive Quantity');
-      return;
-    }
-    
-    // Validate rate
-    const rateNum = parseFloat(formData.rate);
-    if (!formData.rate || isNaN(rateNum) || rateNum <= 0) {
-      alert('Please enter a valid positive Rate');
-      return;
-    }
-    
-    // Validate date logic
-    const tradeDate = new Date(formData.date);
-    const settlementDate = new Date(formData.settlementDate);
-    if (settlementDate < tradeDate) {
-      alert('Settlement Date cannot be before Trade Date');
+
+    // Validate end date is after or equal to start date
+    if (new Date(endDate) < new Date(startDate)) {
+      alert('End Date must be equal to or after Start Date');
       return;
     }
 
     const newTransaction: Transaction = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      txnId: formData.txnId,
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       isin: selectedIsin.isin,
       instrumentName: selectedIsin.instrument_name,
       securityType: selectedIsin.security_type,
-      fipId: '', // Not used in Main Transaction
-      date: formData.date,
-      transactionType: formData.transactionType,
-      narration: '', // Not used in Main Transaction
-      direction: formData.direction,
-      quantity: parseFloat(formData.quantity),
-      settlementDate: formData.settlementDate,
-      effectiveDate: formData.effectiveDate,
-      rate: formData.rate,
-      dataSource: formData.dataSource,
+      restrictionLevel: restrictionLevel,
+      restrictedFor: (restrictionLevel === 'GROUP' || restrictionLevel === 'USER') ? restrictedFor : undefined,
+      reasonOfRestriction: reasonOfRestriction,
+      remark: reasonOfRestriction === 'OTHERS' ? remark : undefined,
+      startDate: startDate,
+      endDate: endDate,
       createdAt: new Date().toISOString(),
     };
 
     setTransactions(prev => [...prev, newTransaction]);
-
-    // Keep all fields with their current values - don't clear anything
+    
+    // Keep ISIN, restriction level, and dates (don't clear) - as per user requirement
+    // Clear restrictedFor, remark fields
+    setRestrictedFor('');
+    setRemark('');
   };
 
   const handleOpenDelete = (id: string) => {
@@ -248,97 +207,57 @@ export const MainTransaction = () => {
     setTransactions([]);
     // Clear sessionStorage when all transactions are deleted
     try {
-      sessionStorage.removeItem('transaction-draft');
+      sessionStorage.removeItem('restricted-company-data');
     } catch (error) {
-      console.error('Failed to clear draft from sessionStorage:', error);
+      console.error('Failed to clear data from sessionStorage:', error);
     }
     setDeleteAllConfirmOpen(false);
   };
 
-  // Sanitize CSV values to prevent formula injection
-  const sanitizeCSV = (value: any): string => {
-    const str = String(value);
-    // Prevent formula injection - prefix dangerous characters
-    if (str.startsWith('=') || str.startsWith('+') || 
-        str.startsWith('-') || str.startsWith('@')) {
-      return `'${str}`;
-    }
-    return str;
-  };
-
-  // Custom CSV Export with specific format and columns for Main Transaction
+  // Custom CSV Export with simplified format
   const handleExportCSV = () => {
     if (transactions.length === 0) return;
 
-    // Define headers as per specification
+    // Define headers for simplified export
     const headers = [
-      '_id',
-      'transactionCategory',
-      'userId',
-      'holderId',
-      'dematAccountId',
-      'policyId',
-      'transactionType',
       'isin',
-      'quantity',
-      'rate',
-      'tradeDate',
-      'settlementDate',
-      'effectiveDate',
-      'direction',
-      'referenceId',
-      'dataSource',
-      'txnId',
-      'orderId',
-      'createdOn',
-      'createdBy._id',
-      'createdBy.name',
-      'createdBy.email',
-      'modifiedOn',
-      'modifiedBy._id',
-      'modifiedBy.name',
-      'modifiedBy.email',
+      'instrumentName',
+      'securityType',
+      'restrictionLevel',
+      'restrictedFor',
+      'reasonOfRestriction',
+      'remark',
+      'startDate',
+      'endDate',
+      'createdAt',
       '_class'
     ];
 
+    // Sanitize CSV values to prevent formula injection
+    const sanitizeCSV = (value: any): string => {
+      const str = String(value);
+      // Prevent formula injection - prefix dangerous characters
+      if (str.startsWith('=') || str.startsWith('+') || 
+          str.startsWith('-') || str.startsWith('@')) {
+        return `'${str}`;
+      }
+      return str;
+    };
+
     // Transform transactions to CSV rows
     const csvRows = transactions.map((txn) => {
-      // Format dates as ISO string with time (YYYY-MM-DDTHH:mm:ss.sssZ)
-      const tradeDate = new Date(txn.date).toISOString();
-      const settlementDate = new Date(txn.settlementDate).toISOString();
-      const effectiveDate = new Date(txn.effectiveDate).toISOString();
-      
-      // Convert dataSource to uppercase with underscores for export
-      const dataSourceExport = txn.dataSource.toUpperCase().replace(/\s+/g, '_');
-
       return [
-        '', // _id - empty
-        'STOCKS', // transactionCategory - always STOCKS (prefilled)
-        '', // userId - empty
-        '', // holderId - empty
-        '', // dematAccountId - empty
-        '', // policyId - empty
-        txn.transactionType, // transactionType from user
-        txn.isin, // isin from user
-        txn.quantity, // quantity from user
-        txn.rate, // rate from user
-        tradeDate, // tradeDate - ISO format
-        settlementDate, // settlementDate - ISO format
-        effectiveDate, // effectiveDate - ISO format
-        txn.direction, // direction - CREDIT or DEBIT
-        '', // referenceId - blank
-        dataSourceExport, // dataSource with underscores (e.g., ACCOUNT_AGGREGATOR)
-        txn.txnId || '', // txnId from user
-        '23:59:59', // orderId - default value
-        '', // createdOn - empty
-        '', // createdBy._id - empty
-        '', // createdBy.name - empty
-        '', // createdBy.email - empty
-        '', // modifiedOn - empty
-        '', // modifiedBy._id - empty
-        '', // modifiedBy.name - empty
-        '', // modifiedBy.email - empty
-        '' // _class - blank (last column)
+        txn.isin,
+        txn.instrumentName,
+        txn.securityType,
+        txn.restrictionLevel,
+        txn.restrictedFor || '',
+        txn.reasonOfRestriction,
+        txn.remark || '',
+        txn.startDate,
+        txn.endDate,
+        txn.createdAt,
+        '' // _class - empty (last column)
       ];
     });
 
@@ -354,22 +273,26 @@ export const MainTransaction = () => {
     const url = URL.createObjectURL(blob);
     
     link.setAttribute('href', url);
-    link.setAttribute('download', `main_transactions_${new Date().getTime()}.csv`);
+    link.setAttribute('download', `restricted_company_${new Date().getTime()}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const DATA_SOURCES = [
-    { value: 'Account Aggregator', label: 'Account Aggregator' },
-    { value: 'Manual', label: 'Manual' },
-    { value: 'D360 System', label: 'D360 System' },
+  const RESTRICTION_LEVELS = [
+    { value: 'COMPANY', label: 'Company' },
+    { value: 'GROUP', label: 'Group' },
+    { value: 'USER', label: 'User' },
   ];
 
-  const DIRECTIONS = [
-    { value: 'CREDIT', label: 'CREDIT' },
-    { value: 'DEBIT', label: 'DEBIT' },
+  const RESTRICTION_REASONS = [
+    { value: 'RESEARCH', label: 'Research' },
+    { value: 'UPSI', label: 'UPSI' },
+    { value: 'PMS', label: 'PMS' },
+    { value: 'INVESTMENT_BANKING_TRANSACTION', label: 'Investment Banking Transaction' },
+    { value: 'TRADING_WINDOW_CLOSURE', label: 'Trading Window Closure' },
+    { value: 'OTHERS', label: 'Others' },
   ];
 
   const fieldStyle = {
@@ -389,18 +312,12 @@ export const MainTransaction = () => {
     }
   };
 
-  // Column definitions for DataTable - Reordered as per specification
+  // Column definitions for DataTable - Simplified
   const columns: ColumnDef<Transaction>[] = useMemo(() => [
-    {
-      field: 'txnId',
-      headerName: 'Txn ID',
-      minWidth: 150,
-      sortable: true,
-    },
     {
       field: 'isin',
       headerName: 'ISIN',
-      minWidth: 120,
+      minWidth: 130,
       sortable: true,
       renderCell: row => (
         <Typography sx={{ fontWeight: 700, color: 'primary.main', fontSize: '0.8125rem' }}>
@@ -409,60 +326,58 @@ export const MainTransaction = () => {
       ),
     },
     { 
-      field: 'date', 
-      headerName: 'Trade Date', 
-      minWidth: 110, 
+      field: 'instrumentName', 
+      headerName: 'Instrument Name', 
+      minWidth: 250, 
       sortable: true 
     },
     { 
-      field: 'settlementDate', 
-      headerName: 'Settlement Date', 
-      minWidth: 130, 
-      sortable: true 
-    },
-    { 
-      field: 'effectiveDate', 
-      headerName: 'Effective Date', 
-      minWidth: 130, 
-      sortable: true 
-    },
-    {
-      field: 'transactionType',
-      headerName: 'Transaction Type',
-      minWidth: 150,
+      field: 'restrictionLevel', 
+      headerName: 'Level Of Restriction', 
+      minWidth: 170, 
       sortable: true,
       renderCell: row => {
-        const type = transactionTypes.find(t => t.value === row.transactionType);
-        return type ? type.label : row.transactionType;
-      },
+        const level = RESTRICTION_LEVELS.find(l => l.value === row.restrictionLevel);
+        return level?.label || row.restrictionLevel;
+      }
     },
     { 
-      field: 'direction', 
-      headerName: 'Direction', 
-      minWidth: 100, 
-      sortable: true,
-    },
-    { 
-      field: 'quantity', 
-      headerName: 'Quantity', 
-      minWidth: 120, 
-      sortable: true,
-      renderCell: row => String(row.quantity),
-    },
-    { 
-      field: 'rate', 
-      headerName: 'Rate', 
-      minWidth: 100, 
-      sortable: true,
-      renderCell: row => row.rate || '50.00',
-    },
-    { 
-      field: 'dataSource', 
-      headerName: 'Data Source', 
+      field: 'restrictedFor', 
+      headerName: 'Restricted For', 
       minWidth: 180, 
+      sortable: true,
+      renderCell: row => row.restrictedFor || '-'
+    },
+    { 
+      field: 'reasonOfRestriction', 
+      headerName: 'Reason of Restriction', 
+      minWidth: 220, 
+      sortable: true,
+      renderCell: row => {
+        const reason = RESTRICTION_REASONS.find(r => r.value === row.reasonOfRestriction);
+        return reason?.label || row.reasonOfRestriction;
+      }
+    },
+    { 
+      field: 'remark', 
+      headerName: 'Remarks (In case of Others)', 
+      minWidth: 230, 
+      sortable: true,
+      renderCell: row => row.remark || '-'
+    },
+    { 
+      field: 'startDate', 
+      headerName: 'Start Date', 
+      minWidth: 120, 
       sortable: true 
     },
-  ], [transactionTypes]);
+    { 
+      field: 'endDate', 
+      headerName: 'End Date', 
+      minWidth: 120, 
+      sortable: true 
+    },
+  ], []);
 
   return (
     <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -470,6 +385,8 @@ export const MainTransaction = () => {
       <Card sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
         <CardContent sx={{ p: 2 }}>
           <Grid container spacing={2}>
+            {/* First Row */}
+            {/* ISIN Field */}
             <Grid item xs={12} md={4}>
               <Typography variant="caption" sx={labelStyle}>
                 ISIN <span className="required">*</span>
@@ -527,195 +444,226 @@ export const MainTransaction = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={3.5}>
+            {/* Level of Restriction Field */}
+            <Grid item xs={12} md={2.2}>
               <Typography variant="caption" sx={labelStyle}>
-                Transaction ID <span className="required">*</span>
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                value={formData.txnId}
-                onChange={(e) => handleFieldChange('txnId', e.target.value)}
-                placeholder="Enter Txn ID"
-                sx={fieldStyle}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={3}>
-              <Typography variant="caption" sx={labelStyle}>
-                Transaction Type <span className="required">*</span>
+                Level of Restriction <span className="required">*</span>
               </Typography>
               <TextField
                 select
-                fullWidth
                 size="small"
-                value={formData.transactionType}
-                onChange={(e) => handleFieldChange('transactionType', e.target.value)}
-                sx={fieldStyle}
+                fullWidth
+                value={restrictionLevel}
+                onChange={(e) => {
+                  setRestrictionLevel(e.target.value);
+                  // Clear restrictedFor when changing to Company
+                  if (e.target.value === 'COMPANY') {
+                    setRestrictedFor('');
+                  }
+                }}
+                placeholder="Select Level of Restriction"
                 SelectProps={{
                   displayEmpty: true,
-                  MenuProps: { PaperProps: { sx: { maxHeight: 250 } } }
+                  sx: { fontSize: '0.85rem' }
                 }}
                 InputProps={{
-                  endAdornment: formData.transactionType ? (
+                  endAdornment: restrictionLevel && (
                     <InputAdornment position="end">
                       <IconButton
                         size="small"
-                        onClick={() => handleFieldChange('transactionType', '')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRestrictionLevel('');
+                          setRestrictedFor('');
+                        }}
                         edge="end"
                         sx={{ mr: 1 }}
                       >
-                        <ClearIcon sx={{ fontSize: 18 }} />
+                        <ClearIcon sx={{ fontSize: 16 }} />
                       </IconButton>
                     </InputAdornment>
-                  ) : null,
+                  ),
                 }}
+                sx={fieldStyle}
               >
                 <MenuItem value="" disabled sx={{ fontSize: '0.85rem' }}>
-                  Select Transaction Type
+                  Select Level of Restriction
                 </MenuItem>
-                {transactionTypes.map((type) => (
-                  <MenuItem key={type.value} value={type.value} sx={{ fontSize: '0.85rem' }}>
-                    {type.label}
+                {RESTRICTION_LEVELS.map((level) => (
+                  <MenuItem key={level.value} value={level.value} sx={{ fontSize: '0.85rem' }}>
+                    {level.label}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={1.5}>
+            {/* Conditional Restricted For Field (only for GROUP or USER) */}
+            <Grid item xs={12} md={2.8}>
               <Typography variant="caption" sx={labelStyle}>
-                Direction <span className="required">*</span>
+                Restricted For {(restrictionLevel === 'GROUP' || restrictionLevel === 'USER') && <span className="required">*</span>}
+              </Typography>
+              <TextField
+                size="small"
+                fullWidth
+                value={restrictedFor}
+                onChange={(e) => setRestrictedFor(e.target.value)}
+                placeholder={restrictionLevel === 'GROUP' ? 'Enter Group name' : restrictionLevel === 'USER' ? 'Enter User name' : 'Select Group or User first'}
+                disabled={restrictionLevel === 'COMPANY' || !restrictionLevel}
+                InputProps={{
+                  endAdornment: restrictedFor && !restrictionLevel !== 'COMPANY' && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setRestrictedFor('')}
+                        edge="end"
+                      >
+                        <ClearIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  ...fieldStyle,
+                  '& .MuiOutlinedInput-root.Mui-disabled': {
+                    bgcolor: 'action.disabledBackground',
+                    '& fieldset': { borderColor: 'divider' },
+                  },
+                }}
+              />
+            </Grid>
+
+            {/* Reason of Restrictions Field - Fixed width always */}
+            <Grid item xs={12} md={3}>
+              <Typography variant="caption" sx={labelStyle}>
+                Reason of Restrictions <span className="required">*</span>
               </Typography>
               <TextField
                 select
-                fullWidth
                 size="small"
-                value={formData.direction}
-                onChange={(e) => handleFieldChange('direction', e.target.value)}
-                sx={fieldStyle}
+                fullWidth
+                value={reasonOfRestriction}
+                onChange={(e) => {
+                  setReasonOfRestriction(e.target.value);
+                  // Clear remark when changing reason
+                  setRemark('');
+                }}
+                placeholder="Select Reason"
                 SelectProps={{
                   displayEmpty: true,
+                  sx: { fontSize: '0.85rem' }
                 }}
+                InputProps={{
+                  endAdornment: reasonOfRestriction && (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReasonOfRestriction('');
+                          setRemark('');
+                        }}
+                        edge="end"
+                        sx={{ mr: 1 }}
+                      >
+                        <ClearIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={fieldStyle}
               >
-                {DIRECTIONS.map((dir) => (
-                  <MenuItem key={dir.value} value={dir.value} sx={{ fontSize: '0.85rem' }}>
-                    {dir.label}
+                <MenuItem value="" disabled sx={{ fontSize: '0.85rem' }}>
+                  Select Reason
+                </MenuItem>
+                {RESTRICTION_REASONS.map((reason) => (
+                  <MenuItem key={reason.value} value={reason.value} sx={{ fontSize: '0.85rem' }}>
+                    {reason.label}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
-          </Grid>
 
-          <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
-            <Box sx={{ flex: 1, minWidth: 150 }}>
+            {/* Second Row - Conditional Remark Field (only for OTHERS) */}
+            {reasonOfRestriction === 'OTHERS' && (
+              <Grid item xs={12} md={4}>
+                <Typography variant="caption" sx={labelStyle}>
+                  Remark (In case of Others) <span className="required">*</span>
+                </Typography>
+                <TextField
+                  size="small"
+                  fullWidth
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                  placeholder="Enter remark"
+                  InputProps={{
+                    endAdornment: remark && (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setRemark('')}
+                          edge="end"
+                        >
+                          <ClearIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={fieldStyle}
+                />
+              </Grid>
+            )}
+
+            {/* Start Date Field */}
+            <Grid item xs={12} md={2.5}>
               <Typography variant="caption" sx={labelStyle}>
-                Data Source <span className="required">*</span>
+                Start Date <span className="required">*</span>
               </Typography>
               <TextField
-                select
-                fullWidth
                 size="small"
-                value={formData.dataSource}
-                onChange={(e) => handleFieldChange('dataSource', e.target.value)}
-                sx={fieldStyle}
-                SelectProps={{
-                  displayEmpty: true,
+                fullWidth
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                inputRef={startDateRef}
+                onClick={() => startDateRef.current?.showPicker?.()}
+                inputProps={{
+                  min: new Date().toISOString().split('T')[0], // Disable past dates
                 }}
-              >
-                {DATA_SOURCES.map((source) => (
-                  <MenuItem key={source.value} value={source.value} sx={{ fontSize: '0.85rem' }}>
-                    {source.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 150 }}>
+                sx={fieldStyle}
+              />
+            </Grid>
+
+            {/* End Date Field */}
+            <Grid item xs={12} md={2.5}>
               <Typography variant="caption" sx={labelStyle}>
-                Trade Date <span className="required">*</span>
+                End Date <span className="required">*</span>
               </Typography>
               <TextField
-                fullWidth
                 size="small"
+                fullWidth
                 type="date"
-                value={formData.date}
-                onChange={(e) => handleFieldChange('date', e.target.value)}
-                inputRef={tradeDateRef}
-                onClick={() => tradeDateRef.current?.showPicker?.()}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                inputRef={endDateRef}
+                onClick={() => endDateRef.current?.showPicker?.()}
+                inputProps={{
+                  min: startDate || new Date().toISOString().split('T')[0], // Disable dates before start date or today
+                }}
                 sx={fieldStyle}
               />
-            </Box>
+            </Grid>
 
-            <Box sx={{ flex: 1, minWidth: 150 }}>
-              <Typography variant="caption" sx={labelStyle}>
-                Settlement Date <span className="required">*</span>
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                type="date"
-                value={formData.settlementDate}
-                onChange={(e) => handleFieldChange('settlementDate', e.target.value)}
-                inputRef={settlementDateRef}
-                onClick={() => settlementDateRef.current?.showPicker?.()}
-                sx={fieldStyle}
-              />
-            </Box>
+            {/* Spacer to push button to extreme right */}
+            <Grid item xs={12} md={reasonOfRestriction === 'OTHERS' ? 2 : 6} />
 
-            <Box sx={{ flex: 1, minWidth: 150 }}>
-              <Typography variant="caption" sx={labelStyle}>
-                Effective Date <span className="required">*</span>
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                type="date"
-                value={formData.effectiveDate}
-                onChange={(e) => handleFieldChange('effectiveDate', e.target.value)}
-                inputRef={effectiveDateRef}
-                onClick={() => effectiveDateRef.current?.showPicker?.()}
-                sx={fieldStyle}
-              />
-            </Box>
-
-            <Box sx={{ flex: 1, minWidth: 120 }}>
-              <Typography variant="caption" sx={labelStyle}>
-                Quantity <span className="required">*</span>
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                value={formData.quantity}
-                onChange={(e) => handleFieldChange('quantity', e.target.value)}
-                placeholder="100"
-                sx={fieldStyle}
-              />
-            </Box>
-
-            <Box sx={{ flex: 1, minWidth: 120 }}>
-              <Typography variant="caption" sx={labelStyle}>
-                Rate <span className="required">*</span>
-              </Typography>
-              <TextField
-                fullWidth
-                size="small"
-                type="number"
-                value={formData.rate}
-                onChange={(e) => handleFieldChange('rate', e.target.value)}
-                placeholder="50.00"
-                inputProps={{ step: '0.01' }}
-                sx={fieldStyle}
-              />
-            </Box>
-
-            <Box sx={{ display: 'flex', alignItems: 'flex-end', minWidth: 50 }}>
+            {/* Add Button - Always at extreme right */}
+            <Grid item xs={12} md={1} sx={{ display: 'flex', alignItems: 'flex-end' }}>
               <Button
                 variant="contained"
                 onClick={handleAddTransaction}
+                fullWidth
                 sx={{
                   borderRadius: 1.5,
-                  minWidth: 40,
-                  width: 40,
                   height: 38,
                   textTransform: 'none',
                   fontWeight: 600,
@@ -723,14 +671,13 @@ export const MainTransaction = () => {
                   bgcolor: 'black',
                   color: 'white',
                   fontSize: '1.2rem',
-                  padding: 0,
                   '&:hover': { bgcolor: 'grey.800' }
                 }}
               >
                 +
               </Button>
-            </Box>
-          </Box>
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
       </Box>
@@ -745,7 +692,7 @@ export const MainTransaction = () => {
           disableSearch={false}
           disableColumnFilters={true}
           searchPlaceholder="Search transactions..."
-          searchFields={['fipId', 'txnId', 'isin', 'instrumentName', 'narration']}
+          searchFields={['isin', 'instrumentName', 'securityType', 'restrictionLevel', 'restrictedFor', 'reasonOfRestriction', 'remark', 'startDate', 'endDate']}
           onDelete={row => handleOpenDelete(row.id)}
           exportFilename="transactions.csv"
           onExport={handleExportCSV}

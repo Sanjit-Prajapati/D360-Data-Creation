@@ -74,7 +74,13 @@ export const TransactionCreation = () => {
       const saved = sessionStorage.getItem('transaction-draft');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
+        // Validate structure
+        if (Array.isArray(parsed)) {
+          const valid = parsed.every(txn => 
+            txn.id && txn.isin && typeof txn.quantity === 'number'
+          );
+          return valid ? parsed : [];
+        }
       }
     } catch (error) {
       console.error('Failed to load draft from sessionStorage:', error);
@@ -189,7 +195,44 @@ export const TransactionCreation = () => {
   };
 
   const handleAddTransaction = () => {
-    if (!selectedIsin || !formData.fipId || !formData.transactionType || !formData.narration || !formData.quantity) {
+    // Validate all mandatory fields
+    if (!selectedIsin) {
+      alert('Please select an ISIN');
+      return;
+    }
+    if (!formData.fipId) {
+      alert('Please select FIP ID');
+      return;
+    }
+    
+    // Sanitize and validate Transaction ID
+    const sanitizedTxnId = formData.txnId.trim();
+    if (!sanitizedTxnId) {
+      alert('Please enter Transaction ID');
+      return;
+    }
+    if (/[<>\"'&]/.test(sanitizedTxnId)) {
+      alert('Transaction ID contains invalid characters');
+      return;
+    }
+    
+    if (!formData.date) {
+      alert('Please select Date');
+      return;
+    }
+    if (!formData.transactionType) {
+      alert('Please select Transaction Type');
+      return;
+    }
+    if (!formData.narration) {
+      alert('Please select Narration');
+      return;
+    }
+    
+    // Validate quantity
+    const qty = parseFloat(formData.quantity);
+    if (!formData.quantity || isNaN(qty) || qty <= 0) {
+      alert('Please enter a valid positive Quantity');
       return;
     }
 
@@ -211,8 +254,8 @@ export const TransactionCreation = () => {
     const direction = selectedNarrationRecord?.direction || 'CREDIT';
 
     const newTransaction: Transaction = {
-      id: Date.now().toString(),
-      txnId: formData.txnId,
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      txnId: sanitizedTxnId,
       isin: selectedIsin.isin,
       instrumentName: selectedIsin.instrument_name,
       securityType: selectedIsin.security_type,
@@ -227,17 +270,8 @@ export const TransactionCreation = () => {
 
     setTransactions(prev => [...prev, newTransaction]);
 
-    // Reset only Transaction Type, Narration, Direction, Quantity, and dynamic fields
-    // Keep ISIN, FIP ID, Txn ID, and Date
-    setFormData(prev => ({
-      ...prev,
-      transactionType: '',
-      narration: '',
-      direction: 'CREDIT',
-      quantity: '',
-      settlementId: '',
-      accountNumber: '',
-    }));
+    // Don't clear any fields - keep all previous data
+    // This allows quick addition of similar transactions
   };
 
   const handleOpenDelete = (id: string) => {
@@ -266,6 +300,17 @@ export const TransactionCreation = () => {
       console.error('Failed to clear draft from sessionStorage:', error);
     }
     setDeleteAllConfirmOpen(false);
+  };
+
+  // Sanitize CSV values to prevent formula injection
+  const sanitizeCSV = (value: any): string => {
+    const str = String(value);
+    // Prevent formula injection - prefix dangerous characters
+    if (str.startsWith('=') || str.startsWith('+') || 
+        str.startsWith('-') || str.startsWith('@')) {
+      return `'${str}`;
+    }
+    return str;
   };
 
   // Custom CSV Export with specific format and columns
@@ -300,7 +345,8 @@ export const TransactionCreation = () => {
       'modifiedOn',
       'modifiedBy._id',
       'modifiedBy.name',
-      'modifiedBy.email'
+      'modifiedBy.email',
+      '_class'
     ];
 
     // Transform transactions to CSV rows
@@ -316,13 +362,16 @@ export const TransactionCreation = () => {
       
       // Format date as ISO string with time (YYYY-MM-DDTHH:mm:ss.sssZ)
       const tradeDate = new Date(txn.date).toISOString();
+      
+      // Convert dataSource to uppercase with underscores for export
+      const dataSourceExport = 'ACCOUNT_AGGREGATOR';
 
       return [
         '', // _id - empty
         txn.fipId,
         '', // holderId - empty
         '', // dematId - empty
-        'ACCOUNT_AGGREGATOR', // dataSource - default
+        dataSourceExport, // dataSource - ACCOUNT_AGGREGATOR
         '', // referenceId - empty
         txn.txnId || '',
         orderId,
@@ -344,14 +393,15 @@ export const TransactionCreation = () => {
         '', // modifiedOn - empty
         '', // modifiedBy._id - empty
         '', // modifiedBy.name - empty
-        ''  // modifiedBy.email - empty
+        '',  // modifiedBy.email - empty
+        '' // _class - empty (last column)
       ];
     });
 
-    // Create CSV content
+    // Create CSV content with sanitized values
     const csvContent = [
       headers.join(','),
-      ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...csvRows.map(row => row.map(cell => `"${sanitizeCSV(cell)}"`).join(','))
     ].join('\n');
 
     // Create blob with UTF-8 encoding
@@ -385,6 +435,9 @@ export const TransactionCreation = () => {
     mb: 0.5,
     display: 'block',
     color: 'text.secondary',
+    '& .required': {
+      color: 'error.main',
+    }
   };
 
   const disabledStyle = {
@@ -474,7 +527,7 @@ export const TransactionCreation = () => {
           <Grid container spacing={2}>
             <Grid item xs={12} md={3}>
               <Typography variant="caption" sx={labelStyle}>
-                ISIN *
+                ISIN <span className="required">*</span>
               </Typography>
               <Autocomplete
                 value={selectedIsin}
@@ -559,7 +612,7 @@ export const TransactionCreation = () => {
 
             <Grid item xs={12} md={3}>
               <Typography variant="caption" sx={labelStyle}>
-                FIP ID *
+                FIP ID <span className="required">*</span>
               </Typography>
               <TextField
                 select
@@ -602,7 +655,7 @@ export const TransactionCreation = () => {
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} md={3}>
               <Typography variant="caption" sx={labelStyle}>
-                Txn ID
+                Txn ID <span className="required">*</span>
               </Typography>
               <TextField
                 fullWidth
@@ -616,7 +669,7 @@ export const TransactionCreation = () => {
 
             <Grid item xs={12} md={1.5}>
               <Typography variant="caption" sx={labelStyle}>
-                Date *
+                Date <span className="required">*</span>
               </Typography>
               <TextField
                 fullWidth
@@ -632,7 +685,7 @@ export const TransactionCreation = () => {
 
             <Grid item xs={12} md={2}>
               <Typography variant="caption" sx={labelStyle}>
-                Transaction Type *
+                Transaction Type <span className="required">*</span>
               </Typography>
               <TextField
                 select
@@ -673,7 +726,7 @@ export const TransactionCreation = () => {
 
             <Grid item xs={12} md={4}>
               <Typography variant="caption" sx={labelStyle}>
-                Narration *
+                Narration <span className="required">*</span>
               </Typography>
               
               {/* Show dropdown when no narration selected */}
@@ -812,7 +865,7 @@ export const TransactionCreation = () => {
 
             <Grid item xs={12} md={1.5}>
               <Typography variant="caption" sx={labelStyle}>
-                Qty *
+                Qty <span className="required">*</span>
               </Typography>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField

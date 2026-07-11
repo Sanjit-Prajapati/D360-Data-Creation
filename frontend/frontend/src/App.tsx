@@ -9,6 +9,7 @@ import { IsinMaster } from '@/features/isinMaster/IsinMaster';
 import { NarrationMaster } from '@/features/narrationMaster/NarrationMaster';
 import { TransactionCreation } from '@/features/stagingTransaction/StagingTransaction';
 import { MainTransaction } from '@/features/mainTransaction/MainTransaction';
+import { RestrictedCompany } from '@/features/restrictedCompany/RestrictedCompany';
 
 // Create React Query client
 const queryClient = new QueryClient({
@@ -67,6 +68,14 @@ function App() {
               element={
                 <MainLayout>
                   <MainTransaction />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/restricted-company"
+              element={
+                <MainLayout>
+                  <RestrictedCompany />
                 </MainLayout>
               }
             />
