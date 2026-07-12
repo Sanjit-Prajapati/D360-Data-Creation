@@ -35,8 +35,13 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class IsinServiceImpl implements IsinService {
+
+    private static final Logger log = LoggerFactory.getLogger(IsinServiceImpl.class);
 
     private final IsinRepository repository;
     private final IsinValidator validator;
@@ -199,17 +204,12 @@ public class IsinServiceImpl implements IsinService {
             throw new SecurityException("Invalid file type '" + contentType + "'. Only CSV files are accepted.");
         }
 
-        Map<String, Isin> importMap = new HashMap<>();
+        List<Isin> pendingRecords = new ArrayList<>();
         int totalCount = 0;
-        int createdCount = 0;
-        int duplicateCount = 0;
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
 
             // ── Auto-detect header row: skip title/metadata lines ─────────────
-            // Some files (e.g. "List_of_companies.csv") have a descriptive title
-            // on the first line(s) before the real column headers.
-            // We read lines until we find one that contains an "isin" column.
             String[] headers = null;
             String line;
             while ((line = reader.readLine()) != null) {
@@ -242,18 +242,27 @@ public class IsinServiceImpl implements IsinService {
             int statusIdx = -1;
             int seriesIdx = -1;
 
+            // First pass: Exact matches
             for (int i = 0; i < headers.length; i++) {
                 String header = headers[i];
-                if (header.equals("isin") || header.contains("isin")) isinIdx = i;
-                else if (header.contains("name"))                       nameIdx = i;
-                else if (header.equals("symbol") || header.contains("scrip code") || header.contains("scrip_code")) symbolIdx = i;
-                else if (header.equals("securitytype") || header.equals("security_type")) typeIdx = i;
-                else if (header.equals("status")) statusIdx = i;
-                else if (header.equals("series") || header.contains("series")) seriesIdx = i;
+                if (header.equals("isin") || header.equals("isin no")) isinIdx = i;
+                if (header.equals("name") || header.equals("sctyname") || header.equals("fininstrmnm") || header.equals("security name") || header.equals("company name")) nameIdx = i;
+                if (header.equals("symbol") || header.equals("scrip code") || header.equals("scrip_code") || header.equals("tckrsymb")) symbolIdx = i;
+                if (header.equals("securitytype") || header.equals("security_type")) typeIdx = i;
+                if (header.equals("status")) statusIdx = i;
+                if (header.equals("series") || header.equals("sctysrs")) seriesIdx = i;
+            }
+            // Second pass: Partial matches for missing columns
+            for (int i = 0; i < headers.length; i++) {
+                String header = headers[i];
+                if (isinIdx == -1 && header.contains("isin")) isinIdx = i;
+                if (nameIdx == -1 && (header.contains("name") || header.contains("instrmnm") || header.contains("desc"))) nameIdx = i;
+                if (symbolIdx == -1 && (header.contains("scrip") || header.contains("tckr"))) symbolIdx = i;
+                if (seriesIdx == -1 && header.contains("series")) seriesIdx = i;
             }
 
-            if (isinIdx == -1 || nameIdx == -1) {
-                throw new IllegalArgumentException("CSV must contain 'ISIN' and a name column.");
+            if (isinIdx == -1) {
+                throw new IllegalArgumentException("CSV must contain an 'ISIN' column.");
             }
 
 
@@ -271,15 +280,26 @@ public class IsinServiceImpl implements IsinService {
 
                 // ── Security: sanitize cell values (strip CSV injection chars)
                 String isinVal   = sanitizeField(getValue(values, isinIdx)).toUpperCase().trim();
-                String nameVal   = sanitizeField(getValue(values, nameIdx)).trim();
-                String symbolVal = sanitizeField(getValue(values, symbolIdx)).trim();
+                String nameVal   = nameIdx != -1 ? sanitizeField(getValue(values, nameIdx)).trim() : "";
+                String symbolVal = symbolIdx != -1 ? sanitizeField(getValue(values, symbolIdx)).trim() : "";
+                
+                if (nameVal.isEmpty()) {
+                    nameVal = symbolVal.isEmpty() ? isinVal : symbolVal;
+                }
                 String typeVal   = sanitizeField(getValue(values, typeIdx)).toUpperCase().trim();
                 String statusVal = sanitizeField(getValue(values, statusIdx)).toUpperCase().trim();
                 String seriesVal = seriesIdx != -1 ? sanitizeField(getValue(values, seriesIdx)).toUpperCase().trim() : "";
 
                 // Validate ISIN format (must be exactly 12 alphanumeric characters)
-                if (isinVal.isEmpty() || nameVal.isEmpty() || isinVal.length() != 12 || !isinVal.matches("^[A-Z0-9]{12}$")) {
+                if (isinVal.isEmpty() || isinVal.length() != 12 || !isinVal.matches("^[A-Z0-9]{12}$")) {
                     continue;
+                }
+
+                // Take only specific series based on user requirements
+                if (seriesIdx != -1) {
+                    if (!java.util.List.of("EQ", "BE", "BZ", "SM", "ST", "SZ", "RR", "RT", "IV", "ID").contains(seriesVal)) {
+                        continue;
+                    }
                 }
 
                 totalCount++;
@@ -288,7 +308,9 @@ public class IsinServiceImpl implements IsinService {
                 if (typeIdx != -1 && !typeVal.isEmpty()) {
                     try {
                         type = SecurityType.valueOf(typeVal);
-                    } catch (Exception e) {}
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Invalid SecurityType '{}' for ISIN '{}', defaulting to EQUITY", typeVal, isinVal);
+                    }
                 } else if (seriesIdx != -1 && !seriesVal.isEmpty()) {
                     type = mapSeriesToSecurityType(seriesVal);
                 }
@@ -296,39 +318,61 @@ public class IsinServiceImpl implements IsinService {
                 Status status = Status.ACTIVE;
                 try {
                     if (!statusVal.isEmpty()) status = Status.valueOf(statusVal);
-                } catch (Exception e) {}
-
-                Isin existing = importMap.get(isinVal);
-                if (existing == null) {
-                    existing = repository.findByIsin(isinVal).orElse(null);
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid Status '{}' for ISIN '{}', defaulting to ACTIVE", statusVal, isinVal);
                 }
 
-                if (existing != null) {
-                    duplicateCount++;
-                    existing.setSecurityName(nameVal);
-                    existing.setSymbol(symbolVal);
-                    existing.setSecurityType(type);
-                    existing.setStatus(status);
-                    importMap.put(isinVal, existing);
-                } else {
-                    createdCount++;
-                    Isin entity = Isin.builder()
-                            .isin(isinVal)
-                            .securityName(nameVal)
-                            .symbol(symbolVal)
-                            .securityType(type)
-                            .status(status)
-                            .build();
-                    importMap.put(isinVal, entity);
-                }
+                Isin entity = Isin.builder()
+                        .isin(isinVal)
+                        .securityName(nameVal)
+                        .symbol(symbolVal)
+                        .securityType(type)
+                        .status(status)
+                        .build();
+                        
+                pendingRecords.add(entity);
             }
         }
 
-        if (importMap.isEmpty()) {
+        if (pendingRecords.isEmpty()) {
             throw new IllegalArgumentException("No valid records found to import.");
         }
 
-        List<Isin> saved = repository.saveAll(importMap.values());
+        // Bulk Fetch Existing ISINs to solve N+1 query issue
+        Set<String> isinSet = pendingRecords.stream().map(Isin::getIsin).collect(Collectors.toSet());
+        List<Isin> existingList = repository.findByIsinIn(isinSet);
+        Map<String, Isin> existingMap = existingList.stream().collect(Collectors.toMap(Isin::getIsin, i -> i));
+
+        int createdCount = 0;
+        int duplicateCount = 0;
+        
+        List<Isin> toSave = new ArrayList<>();
+        
+        for (Isin parsed : pendingRecords) {
+            Isin existing = existingMap.get(parsed.getIsin());
+            if (existing != null) {
+                duplicateCount++;
+                existing.setSecurityName(parsed.getSecurityName());
+                existing.setSymbol(parsed.getSymbol());
+                existing.setSecurityType(parsed.getSecurityType());
+                existing.setStatus(parsed.getStatus());
+                toSave.add(existing);
+            } else {
+                createdCount++;
+                toSave.add(parsed);
+                // Pre-empt internal duplicates in the CSV
+                existingMap.put(parsed.getIsin(), parsed);
+            }
+        }
+
+        // Batch Save
+        List<Isin> saved = new ArrayList<>();
+        int batchSize = 1000;
+        for (int i = 0; i < toSave.size(); i += batchSize) {
+            int end = Math.min(toSave.size(), i + batchSize);
+            saved.addAll(repository.saveAll(toSave.subList(i, end)));
+        }
+
         List<IsinResponse> savedResponses = saved.stream()
                 .map(IsinMapper::toResponse)
                 .collect(Collectors.toList());
@@ -384,15 +428,16 @@ public class IsinServiceImpl implements IsinService {
         switch (series.toUpperCase().trim()) {
             case "EQ":
             case "BE":
-            case "BL":
+            case "BZ":
             case "SM":
             case "ST":
             case "SZ":
                 return SecurityType.EQUITY;
-            case "REIT":
             case "RR":
+            case "RT":
                 return SecurityType.REIT;
             case "IV":
+            case "ID":
                 return SecurityType.INVIT;
             default:
                 return SecurityType.EQUITY;
