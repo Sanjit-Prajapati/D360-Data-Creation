@@ -2,7 +2,6 @@ import {
   Box,
   MenuItem,
   Typography,
-  Grid,
   Card,
   CardContent,
   Autocomplete,
@@ -386,8 +385,8 @@ export const MainTransaction = () => {
             )}
 
             {/* Row 1: ISIN, Transaction ID, Transaction Type, Direction */}
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: 240 }}>
                 <Typography variant="caption" sx={labelStyle}>
                   ISIN <span className="required">*</span>
                 </Typography>
@@ -440,9 +439,9 @@ export const MainTransaction = () => {
                   )}
                   ListboxProps={{ style: { maxHeight: 250 } }}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={3.5}>
+              <Box sx={{ flex: '1 1 240px', minWidth: 200 }}>
                 <FormInput
                   label="Transaction ID"
                   required
@@ -451,9 +450,9 @@ export const MainTransaction = () => {
                   placeholder="Enter Txn ID"
                   sx={fieldStyle}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={3}>
+              <Box sx={{ flex: '1 1 220px', minWidth: 180 }}>
                 <FormInput
                   select
                   label="Transaction Type"
@@ -479,9 +478,9 @@ export const MainTransaction = () => {
                     </MenuItem>
                   ))}
                 </FormInput>
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={1.5}>
+              <Box sx={{ flex: '0 1 160px', minWidth: 140 }}>
                 <FormInput
                   select
                   label="Direction"
@@ -497,12 +496,12 @@ export const MainTransaction = () => {
                     </MenuItem>
                   ))}
                 </FormInput>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
 
             {/* Row 2: Data Source, Trade Date, Settlement Date, Effective Date, Quantity, Rate, Add */}
             <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
-              <Box sx={{ flex: 1, minWidth: 150 }}>
+              <Box sx={{ flex: '1 1 180px', minWidth: 160 }}>
                 <FormInput
                   select
                   label="Data Source"
@@ -520,7 +519,7 @@ export const MainTransaction = () => {
                 </FormInput>
               </Box>
 
-              <Box sx={{ flex: 1, minWidth: 150 }}>
+              <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                 <DateInput
                   label="Trade Date"
                   required
@@ -530,7 +529,7 @@ export const MainTransaction = () => {
                 />
               </Box>
 
-              <Box sx={{ flex: 1, minWidth: 150 }}>
+              <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                 <DateInput
                   label="Settlement Date"
                   required
@@ -540,7 +539,7 @@ export const MainTransaction = () => {
                 />
               </Box>
 
-              <Box sx={{ flex: 1, minWidth: 150 }}>
+              <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                 <DateInput
                   label="Effective Date"
                   required
@@ -550,7 +549,7 @@ export const MainTransaction = () => {
                 />
               </Box>
 
-              <Box sx={{ flex: 1, minWidth: 120 }}>
+              <Box sx={{ flex: '1 1 140px', minWidth: 120 }}>
                 <FormInput
                   label="Quantity"
                   required
@@ -562,7 +561,7 @@ export const MainTransaction = () => {
                 />
               </Box>
 
-              <Box sx={{ flex: 1, minWidth: 120 }}>
+              <Box sx={{ flex: '1 1 140px', minWidth: 120 }}>
                 <FormInput
                   label="Rate"
                   required

@@ -2,7 +2,6 @@ import {
   Box,
   MenuItem,
   Typography,
-  Grid,
   Card,
   CardContent,
   Autocomplete,
@@ -348,8 +347,8 @@ export const RestrictedCompany = () => {
             )}
 
             {/* Row 1: ISIN, Level of Restriction, Restricted For, Reason */}
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 300px', minWidth: 240 }}>
                 <Typography variant="caption" sx={labelStyle}>
                   ISIN <span className="required">*</span>
                 </Typography>
@@ -402,10 +401,10 @@ export const RestrictedCompany = () => {
                   )}
                   ListboxProps={{ style: { maxHeight: 250 } }}
                 />
-              </Grid>
+              </Box>
 
               {/* Level of Restriction */}
-              <Grid item xs={12} md={2.2}>
+              <Box sx={{ flex: '1 1 200px', minWidth: 180 }}>
                 <FormInput
                   select
                   label="Level of Restriction"
@@ -445,10 +444,10 @@ export const RestrictedCompany = () => {
                     </MenuItem>
                   ))}
                 </FormInput>
-              </Grid>
+              </Box>
 
               {/* Restricted For — conditional on GROUP/USER */}
-              <Grid item xs={12} md={2.8}>
+              <Box sx={{ flex: '1 1 240px', minWidth: 200 }}>
                 <FormInput
                   label="Restricted For"
                   required={form.restrictionLevel === 'GROUP' || form.restrictionLevel === 'USER'}
@@ -472,10 +471,10 @@ export const RestrictedCompany = () => {
                     ) : undefined,
                   }}
                 />
-              </Grid>
+              </Box>
 
               {/* Reason of Restriction */}
-              <Grid item xs={12} md={3}>
+              <Box sx={{ flex: '1 1 240px', minWidth: 200 }}>
                 <FormInput
                   select
                   label="Reason of Restrictions"
@@ -514,13 +513,13 @@ export const RestrictedCompany = () => {
                     </MenuItem>
                   ))}
                 </FormInput>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
 
             {/* Row 2: Remark (conditional), Start Date, End Date, Add */}
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               {form.reasonOfRestriction === 'OTHERS' && (
-                <Grid item xs={12} md={4}>
+                <Box sx={{ flex: '2 1 300px', minWidth: 240 }}>
                   <FormInput
                     label="Remark (In case of Others)"
                     required
@@ -537,10 +536,10 @@ export const RestrictedCompany = () => {
                       ) : undefined,
                     }}
                   />
-                </Grid>
+                </Box>
               )}
 
-              <Grid item xs={12} md={2.5}>
+              <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                 <DateInput
                   label="Start Date"
                   required
@@ -549,9 +548,9 @@ export const RestrictedCompany = () => {
                   minDate={today}
                   sx={fieldStyle}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={2.5}>
+              <Box sx={{ flex: '1 1 160px', minWidth: 140 }}>
                 <DateInput
                   label="End Date"
                   required
@@ -560,27 +559,25 @@ export const RestrictedCompany = () => {
                   minDate={form.startDate || today}
                   sx={fieldStyle}
                 />
-              </Grid>
-
-              {/* Spacer */}
-              <Grid item xs={12} md={form.reasonOfRestriction === 'OTHERS' ? 2 : 6} />
+              </Box>
 
               {/* Add button */}
-              <Grid item xs={12} md={1} sx={{ display: 'flex', alignItems: 'flex-end' }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-end' }}>
                 <Button
                   variant="contained"
                   onClick={handleAddRecord}
-                  fullWidth
                   disabled={!isFormValid}
                   sx={{
-                    height: 38, bgcolor: 'black', color: 'white',
-                    fontSize: '1.2rem', '&:hover': { bgcolor: 'grey.800' },
+                    minWidth: 40, width: 40, height: 38,
+                    bgcolor: 'black', color: 'white',
+                    fontSize: '1.2rem', padding: 0,
+                    '&:hover': { bgcolor: 'grey.800' },
                   }}
                 >
                   +
                 </Button>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
 
           </CardContent>
         </Card>

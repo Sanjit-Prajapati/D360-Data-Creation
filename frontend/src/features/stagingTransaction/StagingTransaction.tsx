@@ -2,7 +2,6 @@ import {
   Box,
   MenuItem,
   Typography,
-  Grid,
   Card,
   CardContent,
   Autocomplete,
@@ -399,8 +398,8 @@ export const TransactionCreation = () => {
             )}
 
             {/* Row 1: ISIN, Security Name, Security Type, FIP ID */}
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={3}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 280px', minWidth: 220 }}>
                 <Typography variant="caption" sx={labelStyle}>
                   ISIN <span className="required">*</span>
                 </Typography>
@@ -453,9 +452,9 @@ export const TransactionCreation = () => {
                   )}
                   ListboxProps={{ style: { maxHeight: 250 } }}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={3}>
+              <Box sx={{ flex: '1 1 240px', minWidth: 200 }}>
                 <FormInput
                   label="Security Name"
                   value={selectedIsin?.instrument_name ?? ''}
@@ -463,9 +462,9 @@ export const TransactionCreation = () => {
                   disabled
                   sx={disabledFieldStyle}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={3}>
+              <Box sx={{ flex: '1 1 180px', minWidth: 160 }}>
                 <FormInput
                   label="Security Type"
                   value={selectedIsin?.security_type ?? ''}
@@ -473,9 +472,9 @@ export const TransactionCreation = () => {
                   disabled
                   sx={disabledFieldStyle}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={3}>
+              <Box sx={{ flex: '1 1 200px', minWidth: 180 }}>
                 <FormInput
                   select
                   label="FIP ID"
@@ -501,12 +500,12 @@ export const TransactionCreation = () => {
                     </MenuItem>
                   ))}
                 </FormInput>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
 
             {/* Row 2: Txn ID, Date, Transaction Type, Narration, Quantity + Add */}
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
-              <Grid item xs={12} md={3}>
+            <Box sx={{ display: 'flex', gap: 2, mt: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ flex: '1 1 220px', minWidth: 180 }}>
                 <FormInput
                   label="Txn ID"
                   required
@@ -515,9 +514,9 @@ export const TransactionCreation = () => {
                   placeholder="Enter Transaction ID"
                   sx={fieldStyle}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={1.5}>
+              <Box sx={{ flex: '0 1 160px', minWidth: 140 }}>
                 <DateInput
                   label="Date"
                   required
@@ -525,9 +524,9 @@ export const TransactionCreation = () => {
                   onChange={(e) => handleFieldChange('date', e.target.value)}
                   sx={fieldStyle}
                 />
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={2}>
+              <Box sx={{ flex: '1 1 200px', minWidth: 180 }}>
                 <FormInput
                   select
                   label="Transaction Type"
@@ -553,10 +552,10 @@ export const TransactionCreation = () => {
                     </MenuItem>
                   ))}
                 </FormInput>
-              </Grid>
+              </Box>
 
               {/* Narration — dropdown or inline editor with placeholder inputs */}
-              <Grid item xs={12} md={4}>
+              <Box sx={{ flex: '2 1 320px', minWidth: 260 }}>
                 <Typography variant="caption" sx={labelStyle}>
                   Narration <span className="required">*</span>
                 </Typography>
@@ -656,35 +655,33 @@ export const TransactionCreation = () => {
                     </IconButton>
                   </Box>
                 )}
-              </Grid>
+              </Box>
 
-              <Grid item xs={12} md={1.5}>
-                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
-                  <FormInput
-                    label="Qty"
-                    required
-                    type="number"
-                    value={formData.quantity}
-                    onChange={(e) => handleFieldChange('quantity', e.target.value)}
-                    placeholder="100"
-                    sx={fieldStyle}
-                  />
-                  <Button
-                    variant="contained"
-                    onClick={handleAddTransaction}
-                    disabled={!isFormValid}
-                    sx={{
-                      minWidth: 40, width: 40, height: 38,
-                      bgcolor: 'black', color: 'white',
-                      fontSize: '1.2rem', padding: 0,
-                      '&:hover': { bgcolor: 'grey.800' },
-                    }}
-                  >
-                    +
-                  </Button>
-                </Box>
-              </Grid>
-            </Grid>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end', flex: '0 1 160px', minWidth: 140 }}>
+                <FormInput
+                  label="Qty"
+                  required
+                  type="number"
+                  value={formData.quantity}
+                  onChange={(e) => handleFieldChange('quantity', e.target.value)}
+                  placeholder="100"
+                  sx={fieldStyle}
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleAddTransaction}
+                  disabled={!isFormValid}
+                  sx={{
+                    minWidth: 40, width: 40, height: 38,
+                    bgcolor: 'black', color: 'white',
+                    fontSize: '1.2rem', padding: 0,
+                    '&:hover': { bgcolor: 'grey.800' },
+                  }}
+                >
+                  +
+                </Button>
+              </Box>
+            </Box>
 
           </CardContent>
         </Card>
